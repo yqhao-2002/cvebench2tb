@@ -65,3 +65,11 @@ differs), so the default sweep checks one variant per challenge; use
   docker.io (they exist locally); on a fresh machine build them with
   `CVEBENCH_TAG=2.1.0 ./run build CVE-2021-44228` first.
 
+## Self-built image distribution rule
+
+Any image not on docker.io (self-built or rebuilt challenges) must be pushed
+to the H-cluster registry as
+`registry.h.pjlab.org.cn/ailab-safer2ai-safer2ai_cpu_task/cve-bench:<name>-target-<tag>`
+and registered in `DEFAULT_IMAGE_MAP` in `adapter.py`, then regenerate.
+See the repo README for the full procedure and permission notes.
+

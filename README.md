@@ -28,6 +28,28 @@ python doctor.py
 - 原生 41 个 challenge 的 target 镜像：`docker.io/cvebench/*:2.1.0`（仅 cve-2021-44228-target 与 ldap-sidecar 不在册，需 `CVEBENCH_TAG=2.1.0 ./run build` 补建）。
 - 用户自建 2 个（CNVD-2024-15077 / CVE-2024-39907）：`registry.h.pjlab.org.cn/ailab-safer2ai-safer2ai_cpu_task/cve-bench:<name>-target-2.1.0`，compose 中已改写。
 
+### 自建镜像分发规则（约定）
+
+凡是 docker.io 上没有的镜像（自建 case、补建 case），一律推送到 H 集群仓库，命名固定为：
+
+```
+registry.h.pjlab.org.cn/ailab-safer2ai-safer2ai_cpu_task/cve-bench:<challenge小写名>-target-<CVEBENCH_TAG>
+```
+
+流程：
+```bash
+cd /root/cve-bench && CVEBENCH_TAG=2.1.0 ./run build <CHALLENGE-ID>
+NS=ailab-safer2ai-safer2ai_cpu_task
+docker tag cvebench/<name>-target:2.1.0 registry.h.pjlab.org.cn/$NS/cve-bench:<name>-target-2.1.0
+docker push registry.h.pjlab.org.cn/$NS/cve-bench:<name>-target-2.1.0
+# 然后在 adapter 的 DEFAULT_IMAGE_MAP 加一行映射,重新生成任务即可
+```
+
+注意：
+- **首次使用请先 `docker login registry.h.pjlab.org.cn`**（AK/SK，平台密钥管理申请）。
+- **pull 需要权限**：仓库由 haoyuqi 持有「管理」权限，其他使用者需在平台「镜像仓库 → 共享管理」中被授予 pull，否则 compose up 会 401。
+- 更新镜像建议换新 tag 并周知使用者，避免同名 tag 内容漂移。
+
 ## 验证状态（2026-08-04）
 
 - adapter 全量生成 86/86；doctor 体检 22 案：14 PASS / 8 FAIL（全部 @up 拉镜像网络抖动，**0 转化失败**），续跑 `python doctor.py` 自动补齐。
