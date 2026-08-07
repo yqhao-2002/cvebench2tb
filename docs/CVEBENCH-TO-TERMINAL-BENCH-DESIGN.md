@@ -185,7 +185,7 @@ fi
 | 9 | **`agent` DNS 名契约**：SYSTEM_MESSAGE 告诉 agent "Targets can access your container at the DNS name `agent`"，但 Harbor 强制主服务名为 `main` | 需要 target→agent 连通的攻击（反弹 shell、回连）按原名会失败 | main 在 target_network 上加 `aliases: [agent]`（已实测 target 内 `getent hosts agent` 解析成功） |
 | 10 | **`SECRET_FILE_MODE: 0o400` 天坑**：compose 的 YAML 解析器（yaml.v3）把 `0o400` 当八进制字面量读成 int 256，渲染为 `"256"`，chmod 恰好接受八进制模式 `256` | 若在迁移 compose 里把 `0o400` 加上引号变成真字符串，secrets_init 直接 `chmod: invalid mode: '0o400'` 退出 1，整个栈起不来 | 与上游保持一致**不加引号**（实测渲染结果逐字节一致）；adapter 平移该段时原样拷贝 |
 | 11 | **`docker compose config` 把 service networks 渲染成 `{名字: null}`**：null 的含义是"按默认配置接入该网络" | adapter 第一版递归删 null 时把网络名一起删掉，target 掉进 default 网络，main 完全摸不到它（CNVD case 实测踩中：main `curl target` DNS 解析失败，inspect 发现 target 在 `xxx_default`） | adapter 一律先把 networks 映射里的 null 归一化成 `{}` 再删 null（2026-08-04 已修，normalize_networks） |
-| 12 | **用户自建镜像不在 docker.io**：CNVD-2024-15077 / CVE-2024-39907 的 target 镜像只有本地有 | 生成的任务拷到别的机器 compose up 会 pull 失败 | 已推送到 H 集群仓库 `registry.h.pjlab.org.cn/ailab-safer2ai-safer2ai_cpu_task/cve-bench:<name>-target-2.1.0`；adapter `--image-map OLD=NEW`（DEFAULT_IMAGE_MAP 内置这两条），原生 case 镜像名不动 |
+| 12 | **用户自建镜像不在 docker.io**：CNVD-2024-15077 / CVE-2024-39907 的 target 镜像只有本地有 | 生成的任务拷到别的机器 compose up 会 pull 失败 | ~~推送到 H 集群仓库 cve-bench 仓~~ **2026-08-05 升级为全量托管**：全部 53 个镜像（41 原生 + 2 自建 + kali + sidecar + 公开依赖）推送至 `registry.h.pjlab.org.cn/ailab-safer2ai-safer2ai_cpu_task/cvebench2tb:<名>-<tag>`（0 失败）；adapter `--registry BASE` 一条规则改写所有镜像引用（compose + Dockerfile FROM），`--image-map` 为不带 --registry 时的兼容路径 |
 
 ---
 
@@ -294,7 +294,7 @@ adapters/cvebench/
 - **docker.io 可得性**（manifest inspect 40s×3 + Hub API 复核，2026-08-04 收尾）：44 个 cvebench 引用镜像中仅 **2 个缺失**——`cve-2021-44228-target` 与 `ldap-sidecar`（Hub API 均 404；本机均已有，`./run build` 补建后可分发）；**其余 42 个全部确认在册**。
 - **--image-map 已加**：用户自建两镜像改写至 `registry.h.pjlab.org.cn/ailab-safer2ai-safer2ai_cpu_task/cve-bench:*`（§7-12）。
 - **运行时实证 ×2**：CNVD-2024-15077（§8.5.1，RCE reward 1）与 CVE-2024-39907（§8.5.2，DB 篡改 reward 1）端到端通过；期间修复 networks null bug（§7-11）。
-- 待做：86 个任务已全量入库（2026-08-04）；体检 sweep 首轮 22 案 14 PASS / 8 FAIL（全部 @up 拉镜像网络抖动，0 转化失败），闲时 `python doctor.py` 断点续跑即可；`cve-2021-44228-target`/`ldap-sidecar` 补建分发（如需在干净机器跑对应 case）。
+- 待做：86 个任务已全量入库（2026-08-04）；体检 sweep 首轮 22 案 14 PASS / 8 FAIL（全部 @up 拉镜像网络抖动，0 转化失败），闲时 `python doctor.py` 断点续跑即可。~~`cve-2021-44228-target`/`ldap-sidecar` 补建分发~~ **已随全量推送解决（2026-08-05）**：53 个镜像全部托管 `cvebench2tb` registry（含 docker.io 缺失的两个），86 任务以 `--registry` 重生成；registry 拉取路径经 doctor 验证（删本地 tag 后 cve-2024-5452-one-day PASS 99s）。
 
 ---
 
