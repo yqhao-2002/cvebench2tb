@@ -25,53 +25,41 @@ python doctor.py
 
 ## 镜像说明
 
-- 原生 41 个 challenge 的 target 镜像：`docker.io/cvebench/*:2.1.0`（仅 cve-2021-44228-target 与 ldap-sidecar 不在册，需 `CVEBENCH_TAG=2.1.0 ./run build` 补建）。
-- 用户自建 2 个（CNVD-2024-15077 / CVE-2024-39907）：`registry.h.pjlab.org.cn/ailab-safer2ai-safer2ai_cpu_task/cve-bench:<name>-target-2.1.0`，compose 中已改写。
+**全部镜像（41 原生 target + 2 自建 + kali 基底 + 全部 sidecar + 公开依赖）已托管到 H 集群仓库**，任务文件中的引用已全部指向它，开箱即拉：
+
+```
+registry.h.pjlab.org.cn/ailab-safer2ai-safer2ai_cpu_task/cvebench2tb:<镜像名>-<tag>
+```
+
+例：`cvebench2tb:cve-2024-2624-target-2.1.0`、`cvebench2tb:kali-large-2.1.0`、`cvebench2tb:mariadb-11.8`、`cvebench2tb:ubuntu-22.04`（规则：`cvebench/<名>:<tag>` → `cvebench2tb:<名>-<tag>`，共 53 个，2026-08-05 全量推送 0 失败）。
+
+使用前提：
+- **先 `docker login registry.h.pjlab.org.cn`**（AK/SK，平台密钥管理申请）；
+- **pull 需授权**：仓库由 haoyuqi 持有「管理」权限，使用者需在平台「镜像仓库 → 共享管理」中被授予 pull，否则 401。
+
+重新生成任务（registry 模式）：
+```bash
+cd adapters/cvebench
+python adapter.py --registry registry.h.pjlab.org.cn/ailab-safer2ai-safer2ai_cpu_task/cvebench2tb
+# 不带 --registry 则生成 docker.io 名义版(适合公网环境)
+```
 
 ### 自建镜像分发规则（约定）
 
-凡是 docker.io 上没有的镜像（自建 case、补建 case），一律推送到 H 集群仓库，命名固定为：
+凡是新接入/补建的镜像，一律推送到 `cvebench2tb` 仓库，命名固定为上述拍平规则，然后在 adapter 源码注册映射（或不带 `--registry` 生成时靠 `DEFAULT_IMAGE_MAP`）：
 
-```
-registry.h.pjlab.org.cn/ailab-safer2ai-safer2ai_cpu_task/cve-bench:<challenge小写名>-target-<CVEBENCH_TAG>
-```
-
-流程：
 ```bash
 cd /root/cve-bench && CVEBENCH_TAG=2.1.0 ./run build <CHALLENGE-ID>
-NS=ailab-safer2ai-safer2ai_cpu_task
-docker tag cvebench/<name>-target:2.1.0 registry.h.pjlab.org.cn/$NS/cve-bench:<name>-target-2.1.0
-docker push registry.h.pjlab.org.cn/$NS/cve-bench:<name>-target-2.1.0
-# 然后在 adapter 的 DEFAULT_IMAGE_MAP 加一行映射,重新生成任务即可
+NS=registry.h.pjlab.org.cn/ailab-safer2ai-safer2ai_cpu_task/cvebench2tb
+docker tag cvebench/<name>-target:2.1.0 $NS:<name>-target-2.1.0
+docker push $NS:<name>-target-2.1.0
 ```
 
-注意：
-- **首次使用请先 `docker login registry.h.pjlab.org.cn`**（AK/SK，平台密钥管理申请）。
-- **pull 需要权限**：仓库由 haoyuqi 持有「管理」权限，其他使用者需在平台「镜像仓库 → 共享管理」中被授予 pull，否则 compose up 会 401。
-- 更新镜像建议换新 tag 并周知使用者，避免同名 tag 内容漂移。
+注意：更新镜像建议换新 tag 并周知使用者，避免同名 tag 内容漂移。
 
-## 离线/无 docker.io 环境：用共享缓存预载镜像
+### （已废弃）gpfs2 缓存渠道
 
-任务文件里的镜像引用（`cvebench/*:2.1.0`）遵循 Docker "先本地后远端" 的解析规则——只要同名镜像在本地，就不会访问网络。共享存储上备好了镜像缓存，一条脚本完成预载与核对：
-
-```bash
-# 前提: 能访问 gpfs2 共享存储(或把缓存 tar 拷贝到本机任意目录,传参即可)
-bash scripts/preload-images.sh                 # 默认读 gpfs2 缓存目录
-bash scripts/preload-images.sh /path/to/cache  # 或指定拷贝位置
-```
-
-脚本做的事：① `docker import` 缓存的 kali-large（rootfs 格式）；② `docker load` 镜像合集 tar；③ 扫描仓库全部任务引用的镜像，核对本地是否就位，缺谁报谁。
-
-缓存目录结构（gpfs2: `trustcyberdata/public/forEval/forExploit/CVEBench/`）：
-
-```
-dockers/kali-large.tar        # agent 基底镜像(rootfs 导出,7.2GB)
-code/cvebench-images.tar      # 40+ target/sidecar 镜像合集(docker save 格式)
-```
-
-> ⚠️ 当前 `cvebench-images.tar` 尚为 0 字节占位（导出中断），补齐方法见脚本运行时的 MISS 提示；补齐前 target 镜像仍需 docker.io pull（42/44 在册已验证）或本地已有。
-
-两条分发渠道的选择：**能挂 gpfs2** → 用本节的缓存预载；**集群 worker/只能走 registry** → 用上一节的 registry.h 仓库推送渠道。
+`trustcyberdata/public/forEval/forExploit/CVEBench/` 对项目成员为**只读**且合集 tar 未完成（0 字节），自 2026-08-05 起分发以 registry 为唯一渠道；`scripts/preload-images.sh` 保留供持有该缓存写权限者参考。
 
 ## 验证状态（2026-08-04）
 
