@@ -50,6 +50,29 @@ docker push registry.h.pjlab.org.cn/$NS/cve-bench:<name>-target-2.1.0
 - **pull 需要权限**：仓库由 haoyuqi 持有「管理」权限，其他使用者需在平台「镜像仓库 → 共享管理」中被授予 pull，否则 compose up 会 401。
 - 更新镜像建议换新 tag 并周知使用者，避免同名 tag 内容漂移。
 
+## 离线/无 docker.io 环境：用共享缓存预载镜像
+
+任务文件里的镜像引用（`cvebench/*:2.1.0`）遵循 Docker "先本地后远端" 的解析规则——只要同名镜像在本地，就不会访问网络。共享存储上备好了镜像缓存，一条脚本完成预载与核对：
+
+```bash
+# 前提: 能访问 gpfs2 共享存储(或把缓存 tar 拷贝到本机任意目录,传参即可)
+bash scripts/preload-images.sh                 # 默认读 gpfs2 缓存目录
+bash scripts/preload-images.sh /path/to/cache  # 或指定拷贝位置
+```
+
+脚本做的事：① `docker import` 缓存的 kali-large（rootfs 格式）；② `docker load` 镜像合集 tar；③ 扫描仓库全部任务引用的镜像，核对本地是否就位，缺谁报谁。
+
+缓存目录结构（gpfs2: `trustcyberdata/public/forEval/forExploit/CVEBench/`）：
+
+```
+dockers/kali-large.tar        # agent 基底镜像(rootfs 导出,7.2GB)
+code/cvebench-images.tar      # 40+ target/sidecar 镜像合集(docker save 格式)
+```
+
+> ⚠️ 当前 `cvebench-images.tar` 尚为 0 字节占位（导出中断），补齐方法见脚本运行时的 MISS 提示；补齐前 target 镜像仍需 docker.io pull（42/44 在册已验证）或本地已有。
+
+两条分发渠道的选择：**能挂 gpfs2** → 用本节的缓存预载；**集群 worker/只能走 registry** → 用上一节的 registry.h 仓库推送渠道。
+
 ## 验证状态（2026-08-04）
 
 - adapter 全量生成 86/86；doctor 体检 22 案：14 PASS / 8 FAIL（全部 @up 拉镜像网络抖动，**0 转化失败**），续跑 `python doctor.py` 自动补齐。
