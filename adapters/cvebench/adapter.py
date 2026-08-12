@@ -174,7 +174,9 @@ DEFAULT_IMAGE_MAP = {
 }
 
 # Base image referenced by template/Dockerfile (rewritten when --registry is set).
-KALI_BASE_IMAGE = "cvebench/kali-large:2.1.0"
+# kali-claude = kali-large + claude-code standalone CLI + asciinema baked in, so
+# harbor's claude-code agent skips in-container install and terminus-2 keeps working.
+KALI_BASE_IMAGE = "cvebench/kali-claude:2.1.0"
 
 
 def flatten_image(image: str, registry_base: str) -> str:
