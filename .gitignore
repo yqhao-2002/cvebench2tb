@@ -3,3 +3,6 @@ jobs/
 __pycache__/
 *.pyc
 image/kali-claude/claude
+image/kali-agents/claude
+image/kali-agents/codex
+image/kali-agents/opencode

@@ -316,7 +316,7 @@ adapters/cvebench/
 2. **模型名裸传**：harbor 检测到自定义 `ANTHROPIC_BASE_URL` 时对 `--model` 保留全名（不 split provider 前缀），并把 `ANTHROPIC_DEFAULT_{SONNET,OPUS,HAIKU}_MODEL` + `CLAUDE_CODE_SUBAGENT_MODEL` 四个别名全部指向它（`agents/installed/claude_code.py`）。所以是 `--model kimi-k3` 而非 `--model anthropic/kimi-k3`。
 3. **权限与沙箱**：harbor 默认带 `--permission-mode=bypassPermissions` 且设 `IS_SANDBOX=1`（root 容器内允许 bypass），非交互打靶无确认卡点。
 4. **环境隔离坑（实踩）**：在 Claude Code 会话的 shell 里跑 harbor 时，会话自身的 `ANTHROPIC_BASE_URL` 会泄漏进子进程——网关 token 打到会话 endpoint 上得到 `401 Invalid token`（重试 10 次耗尽即 trial error）。`scripts/run-claude-code.sh` 已强制覆盖这两个变量（可用 `CC_BASE_URL`/`CC_API_KEY` 显式覆盖）。
-5. **镜像**：`cvebench/kali-claude:2.1.0`（构建上下文 `image/kali-claude/`，二进制 pin 2.1.228 + sha256 校验）；adapter `KALI_BASE_IMAGE` 指向它，`--registry` 重生成后 86 个任务 Dockerfile 仅剩 `FROM` + `WORKDIR` 两行。
+5. **镜像**：现已升级为 `cvebench/kali-agents:2.1.0`（构建上下文 `image/kali-agents/`），同一 Kali 镜像预装 claude-code / codex / opencode / mini-swe-agent；三份独立二进制做版本与 sha256 pin，mini-swe-agent 使用隔离 venv 和完整依赖 lock。adapter `KALI_BASE_IMAGE` 已指向该镜像，86 个任务以 `--registry` 重生成。完整方案见 `KALI-AGENTS-MIGRATION.md`。
 6. **网关限流**：集群级 RPM（烟测数次 curl 即触 429，retry_after 20~45s）；claude-code 自带指数退避可吸收，但并发建议 `-n 1` 起步。
 7. **glm-5.2 注意**：reasoning 模型可能吃掉 `max_tokens` 输出预算（bountybench 前科），输出截断时设 `CLAUDE_CODE_MAX_OUTPUT_TOKENS`（harbor 会透传）。
 8. **判分链不变**：verifier 仍在 main 容器 curl `target:9091/done`，与 agent 类型无关；doctor.py 无需改动。

@@ -26,9 +26,38 @@ cd adapters/cvebench && python adapter.py
 python doctor.py
 ```
 
-## claude-code agent
+## all-in-one agent 镜像
 
-任务镜像基底为 `cvebench/kali-claude:2.1.0`（= kali-large + claude-code 2.1.228 独立二进制 + asciinema，见 `Dockerfile` 根仓 `image/` 构建目录说明），harbor 的 claude-code agent 因此跳过容器内安装，**运行时零外网依赖**；terminus-2 等终端类 agent 不受影响（tmux/asciinema 仍在）。
+任务镜像基底为 `cvebench/kali-agents:2.1.0`：在 kali-large 上同时预装 claude-code、codex、opencode、mini-swe-agent 与 asciinema。claude-code/codex 直接使用 Harbor 原生 agent；opencode/mini-swe-agent 使用 `agents/offline_agents.py` 中的薄子类，只补“已安装则复用”和独立二进制版本探测，run/轨迹/模型配置仍继承 Harbor 原实现。详见 `docs/KALI-AGENTS-MIGRATION.md`。
+
+四个 CLI 均位于 `/usr/local/bin`，镜像构建时完成版本检查；mini-swe-agent 的完整依赖安装在独立 venv 并由 lock 文件固定，不覆盖 Kali 的系统 Python。terminus-2 等终端类 agent 不受影响，tmux/asciinema 仍在。
+
+```bash
+# codex / claude-code：Harbor 原生 agent 会复用镜像内 CLI
+harbor run --path <task-dir> --agent codex ...
+harbor run --path <task-dir> --agent claude-code ...
+
+# opencode / mini-swe-agent：使用仓库薄子类，需让 Harbor 能 import 仓库
+PYTHONPATH="$PWD" harbor run --path <task-dir> \
+  --agent agents.offline_agents:OfflineOpenCode ...
+PYTHONPATH="$PWD" harbor run --path <task-dir> \
+  --agent agents.offline_agents:OfflineMiniSweAgent ...
+```
+
+### 四 agent 烟测（2026-08-14）
+
+在 `cve-2024-2624-one-day` + kimi-k3 上逐一验证四个 agent 都能正常启动（镜像内 CLI 复用、进入 run 并真正调用模型），**全部通过**：
+
+| agent | 调用方式 | install 复用 | 启动证据 |
+|---|---|---|---|
+| claude-code | `--agent claude-code` | ✅ 命中预装 | 15 次 tool_use 解题 |
+| codex | `--agent codex` | ✅ 命中预装 | `codex exec --model kimi-k3` + curl 探测目标 |
+| opencode | `--agent agents.offline_agents:OfflineOpenCode` | ✅ 薄子类跳过 | reasoning + tool_use |
+| mini-swe-agent | `--agent agents.offline_agents:OfflineMiniSweAgent` | ✅ 薄子类跳过 | step 1 + tool |
+
+烟测时四个 agent 的 setup 阶段均未触发任何 `npm install` / `uv tool install` / 安装用 curl，确认「镜像预装 → Harbor 复用」链路完整。网关三个协议路径（Anthropic `/v1/messages`、OpenAI `/v1/chat/completions`、`/v1/responses`）均已恢复可用。注意：codex 走 `wss://` 流式会被网关 503 拒绝、回退到 HTTP 继续运行，长任务需观察稳定性。
+
+### claude-code agent
 
 ```bash
 scripts/run-claude-code.sh <task-dir> [model] [extra harbor args...]
@@ -51,13 +80,13 @@ scripts/run-claude-code.sh cve-2024-2624-one-day glm-5.2 -n 1 -k 3 --ak max_turn
 
 ## 镜像说明
 
-**全部镜像（41 原生 target + 2 自建 + kali 基底 + 全部 sidecar + 公开依赖）已托管到 H 集群仓库**，任务文件中的引用已全部指向它，开箱即拉：
+**既有镜像（41 原生 target + 2 自建 + 旧 kali 基底 + 全部 sidecar + 公开依赖）已托管到 H 集群仓库**。86 个任务现已切换到新的 `kali-agents-2.1.0`，该 tag 已推送（digest `sha256:c8723851…`），其他机器 `docker login` 并授权后可直接拉取：
 
 ```
 registry.h.pjlab.org.cn/ailab-safer2ai-safer2ai_cpu_task/cvebench2tb:<镜像名>-<tag>
 ```
 
-例：`cvebench2tb:cve-2024-2624-target-2.1.0`、`cvebench2tb:kali-claude-2.1.0`、`cvebench2tb:mariadb-11.8`、`cvebench2tb:ubuntu-22.04`（规则：`cvebench/<名>:<tag>` → `cvebench2tb:<名>-<tag>`，共 53+1 个：2026-08-05 全量推送 53 个 0 失败；2026-08-12 新增 `kali-claude-2.1.0` = kali-large + claude-code CLI + asciinema，任务基底，构建见 `image/kali-claude/`）。
+例：`cvebench2tb:cve-2024-2624-target-2.1.0`、`cvebench2tb:kali-agents-2.1.0`、`cvebench2tb:mariadb-11.8`、`cvebench2tb:ubuntu-22.04`（规则：`cvebench/<名>:<tag>` → `cvebench2tb:<名>-<tag>`；all-in-one 任务基底构建见 `image/kali-agents/`）。
 
 使用前提：
 - **先 `docker login registry.h.pjlab.org.cn`**（AK/SK，平台密钥管理申请）；
