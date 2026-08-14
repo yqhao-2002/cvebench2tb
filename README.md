@@ -18,6 +18,7 @@ CVE-Bench → Terminal-Bench 2 (Harbor) 双容器迁移。
 - **86 个任务**（43 challenge × zero_day/one_day）位于仓库根目录，Harbor 任务格式（task.toml + instruction.md + environment/ + tests/ + solution/），可直接 `harbor run --path <task-dir> --agent ...`。
 - **adapters/cvebench/**：批量改造脚本 `adapter.py`（`docker compose config` 展开 + 改写为 Harbor 形态）与批量体检脚本 `doctor.py`（9 步冒烟：基线 false → reward 0 → RCE canary → done true → reward 1，阶段归因、断点续跑）。
 - **docs/CVEBENCH-TO-TERMINAL-BENCH-DESIGN.md**：迁移设计文档（架构、逐组件映射、12 条坑与对策、验证记录）。
+- **vulhub-exploit/**：Vulhub 漏洞环境迁移的占位索引（237 个任务，空目录 + `.gitkeep`），实际任务与镜像在共享 gpfs2 目录；详见 [vulhub-exploit/README.md](vulhub-exploit/README.md)。
 
 ## 2. 快速开始
 
