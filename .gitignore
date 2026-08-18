@@ -6,3 +6,7 @@ image/kali-claude/claude
 image/kali-agents/claude
 image/kali-agents/codex
 image/kali-agents/opencode
+image/kali-exploit/jdk8.tar.gz
+image/kali-exploit/ysoserial-all.jar
+image/kali-exploit/jmet-0.1.0-all.jar
+image/kali-exploit/phpggc/

@@ -60,6 +60,20 @@ PYTHONPATH="$PWD" harbor run --path <task-dir> \
   --agent agents.offline_agents:OfflineMiniSweAgent ...
 ```
 
+### 4.1.1 exploit 工具衍生镜像（kali-agents-exploit）
+
+部分 vulhub-exploit 任务的 solution 依赖 Java/PHP 反序列化 payload 生成工具，`kali-agents` 里没有。为此在 `kali-agents:2.1.0` 基础上衍生出 `cvebench/kali-agents-exploit:2.1.0`（registry 拍平名 `cvebench2tb:kali-agents-exploit-2.1.0`），额外预装三个工具：
+
+| 工具 | 命令 | 说明 |
+|---|---|---|
+| ysoserial | `ysoserial` | Java 反序列化 payload 生成（frohoff/ysoserial v0.0.6）；同时落 `/opt/ysoserial-all.jar` 与 `/opt/ysoserial.jar`（symlink），兼容 solution 硬编码路径 |
+| jmet | `jmet` | ActiveMQ OpenWire 等消息中间件利用（matthiaskaiser/jmet 0.1.0） |
+| phpggc | `phpggc` | PHP gadget 链生成（ambionics/phpggc） |
+
+**关键坑**：ysoserial/jmet 是 JDK 8 时代工具，kali-large 的 openjdk 21 因 JPMS 模块限制会使其大部分 gadget 生成 0 字节（`InaccessibleObjectException`）。故镜像内置 Temurin JDK 8（8u502-b07，`/opt/jdk8`），`ysoserial`/`jmet` 的 wrapper 统一用 JDK 8 运行。端到端已验证 CC5/CC6/CommonsBeanutils1/CC2 反序列化后命令真实执行；**CC1 需 target JDK < 8u71**（其依赖的 `AnnotationInvocationHandler` 在 8u71 被修复），gadget 选择由 target 版本决定。
+
+构建见 `image/kali-exploit/`（Dockerfile + fetch.sh，工具与 JDK 8 的 sha256/commit 均已 pin）。此镜像**独立于 `kali-agents`**，仅在需要反序列化工具的任务里把 main 基底切过去，不覆盖原镜像。
+
 ### 4.2 四 agent 烟测（2026-08-14）
 
 在 `cve-2024-2624-one-day` + kimi-k3 上逐一验证四个 agent 都能正常启动（镜像内 CLI 复用、进入 run 并真正调用模型），**全部通过**：
