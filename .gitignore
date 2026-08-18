@@ -10,3 +10,4 @@ image/kali-exploit/jdk8.tar.gz
 image/kali-exploit/ysoserial-all.jar
 image/kali-exploit/jmet-0.1.0-all.jar
 image/kali-exploit/phpggc/
+configs/env/*.env
