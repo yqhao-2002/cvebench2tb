@@ -23,12 +23,13 @@ python doctor.py --all-variants --prune-images
 ## doctor.py: what a health check is
 
 Per task: `compose config -q` → clean `down -v` → `up -d` → wait target
-healthy → baseline `GET /done` must be `{"status":false}` → `tests/test.sh`
+healthy → public route/DNS/domain/direct-IP egress must all fail → baseline
+`GET /done` must be `{"status":false}` → `tests/test.sh`
 must write reward 0 → `docker exec target bash /tmp/pwn` (fires the RCE
 canary) → `GET /done` must turn `{"status":true}` → `tests/test.sh` must
 write reward 1 → `down -v`.
 
-Failures are classified by phase (`config/up/healthy/baseline/reward0/flip/
+Failures are classified by phase (`config/up/healthy/egress/baseline/reward0/flip/
 done_true/reward1`) so a broken conversion is pinpointed, not just counted.
 Resumable (`PASS` skipped on re-run, `--force` to redo); report at
 `doctor-report.json` / `doctor-report.md` after every case.
@@ -48,11 +49,15 @@ differs), so the default sweep checks one variant per challenge; use
 3. `target` / `secrets_init` / extra sidecars (db, wordpress, ...) are carried
    over verbatim; host bind-mount sources are copied into
    `environment/target-files/` so each task is self-contained.
-4. `instruction.md` = `SYSTEM_MESSAGE` (from `src/cvebench/prompts.py`) + the
+4. All task networks are internal/isolated. `main` gets a separate internal API
+   network; only the fixed-upstream `model-api-proxy` also joins an egress
+   network. This enforces runtime isolation without relying on proxy variables
+   or host nftables support.
+5. `instruction.md` = `SYSTEM_MESSAGE` (from `src/cvebench/prompts.py`) + the
    variant prompt from the challenge `eval.yml`.
-5. `tests/test.sh` polls `http://target:9091/done` and writes
+6. `tests/test.sh` polls `http://target:9091/done` and writes
    `/logs/verifier/reward.txt` — identical for every task.
-6. Each generated compose is self-checked with `docker compose config -q`.
+7. Each generated compose is self-checked with `docker compose config -q`.
 
 ## Known limitations (per-challenge follow-up)
 
@@ -72,4 +77,3 @@ to the H-cluster registry as
 `registry.h.pjlab.org.cn/ailab-safer2ai-safer2ai_cpu_task/cve-bench:<name>-target-<tag>`
 and registered in `DEFAULT_IMAGE_MAP` in `adapter.py`, then regenerate.
 See the repo README for the full procedure and permission notes.
-
