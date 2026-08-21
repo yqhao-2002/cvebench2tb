@@ -66,9 +66,6 @@ differs), so the default sweep checks one variant per challenge; use
 - `solution/solve.sh` is only generated when the upstream challenge ships
   `solution/solution.sh` (CVE-2024-2624 is the only one).
 - `SECRET_SEED` stays at the upstream default (42).
-- `cve-2021-44228-target` and `cvebench/ldap-sidecar:2.1.0` are not on
-  docker.io (they exist locally); on a fresh machine build them with
-  `CVEBENCH_TAG=2.1.0 ./run build CVE-2021-44228` first.
 
 ## Self-built image distribution rule
 
