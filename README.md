@@ -26,11 +26,11 @@ CVE-Bench → Terminal-Bench 2 (Harbor) 双容器迁移。
 # 跑一个任务（oracle 仅 cve-2024-2624 有官方 solution）
 harbor run --path cve-2024-2624-one-day --agent oracle
 
-# 四个 harness：都走当前 conda Harbor 环境与本仓库内置脚本
-scripts/run-claude-code.sh cve-2024-2624-one-day deepseek-v4-pro-0813 -n 1
-scripts/run-codex.sh cve-2024-3234-one-day deepseek-v4-pro-0813 -n 1
-scripts/run-opencode.sh cve-2024-34716-one-day deepseek-v4-pro-0813 -n 1
-scripts/run-mini-swe-agent.sh cve-2024-5315-one-day deepseek-v4-pro-0813 -n 1
+# 四个 harness：纯 Harbor CLI 启动（一次性安装见 §4.3）
+harbor run --path cve-2024-2624-one-day --agent agents.tracing_agents:TracingClaudeCode        --model deepseek-v4-pro-0813 -n 1
+harbor run --path cve-2024-3234-one-day --agent agents.tracing_agents:TracingCodex             --model openai/deepseek-v4-pro-0813 -n 1
+harbor run --path cve-2024-34716-one-day --agent agents.tracing_agents:TracingOfflineOpenCode  --model openai/deepseek-v4-pro-0813 -n 1
+harbor run --path cve-2024-5315-one-day --agent agents.tracing_agents:TracingOfflineMiniSweAgent --model openai/deepseek-v4-pro-0813 -n 1
 
 # 重新生成全部任务（registry 模式，见 §5）
 cd adapters/cvebench && python adapter.py --registry registry.h.pjlab.org.cn/ailab-safer2ai-safer2ai_cpu_task/cvebench2tb
@@ -107,35 +107,49 @@ cp configs/env/claude-code.env.example configs/env/claude-code.env
 cp configs/env/openai-compatible.env.example configs/env/openai-compatible.env
 ```
 
-然后按 agent 启动：
+一次性安装（每台机器一次；editable 安装，git pull 即生效）：
 
 ```bash
-scripts/run-claude-code.sh <task-dir> [model] [extra harbor args...]
-scripts/run-codex.sh <task-dir> [model] [extra harbor args...]
-scripts/run-opencode.sh <task-dir> [model] [extra harbor args...]
-scripts/run-mini-swe-agent.sh <task-dir> [model] [extra harbor args...]
-
-# 例: claude-code / deepseek-v4-pro-0813
-scripts/run-claude-code.sh cve-2024-2624-one-day deepseek-v4-pro-0813 -n 1
-
-# 例: codex / deepseek-v4-pro-0813
-scripts/run-codex.sh cve-2024-3234-one-day deepseek-v4-pro-0813 -n 1
-
-# 例: opencode / deepseek-v4-pro-0813
-scripts/run-opencode.sh cve-2024-34716-one-day deepseek-v4-pro-0813 -n 1
-
-# 例: mini-swe-agent / deepseek-v4-pro-0813
-scripts/run-mini-swe-agent.sh cve-2024-5315-one-day deepseek-v4-pro-0813 -n 1
+uv pip install --python "$(dirname "$(head -1 $(command -v harbor))")/python" -e /root/cvebench2tb
+# 或：uv tool inject harbor -e /root/cvebench2tb
 ```
 
-要点（脚本注释里有完整版）：
+配置网关凭证（可写入 `configs/env/*.env` 后 `set -a; . <file>; set +a`，或直接 export / `--ae`）：
 
-- **不再依赖其它仓库**：四个脚本只依赖本仓库的 `configs/env/*.env`、`configs/env/*.env.example`、`agents/tracing_agents.py`、`agents/offline_agents.py` 和当前 conda Harbor。
-- **可选反代抓取**：给任一脚本追加 `--ak capture_http=true`，会在 trial 的 `agent/` 目录额外生成单个汇总文件 `proxy_trajectory.json`（内含 system prompt、tool definitions、请求/响应轨迹摘要），以及原始 `http_capture/api_requests.jsonl` / `api_responses.jsonl`。
-- **claude-code**：模型名必须裸名；脚本读取 `configs/env/claude-code.env`，可先从 `configs/env/claude-code.env.example` 复制；也可用 `CC_BASE_URL`/`CC_API_KEY` 临时覆盖。
-- **codex**：模型名同样传裸名；脚本读取 `configs/env/openai-compatible.env`，可先从 `configs/env/openai-compatible.env.example` 复制，并把 `OPENAI_*` 以 Harbor env template 方式传给 agent。
-- **opencode**：脚本固定使用 `agents.tracing_agents:TracingOfflineOpenCode`，模型默认映射到 `openai/<model>`，不再做 `vllm` provider 特判。**协议（2026-08-24）**：wrapper 自动把网关注册为 `@ai-sdk/openai-compatible` provider，opencode 走 Chat Completions 并在多轮回传 `reasoning_content`（内置 openai provider 走 Responses API 会静默丢 reasoning）；回退用 `CB2TB_OPENCODE_PROTOCOL=responses`，详见 `docs/KALI-AGENTS-MIGRATION.md` §12。
-- **mini-swe-agent**：脚本固定使用 `agents.tracing_agents:TracingOfflineMiniSweAgent`，模型名自动补成 `openai/<model>`。
+```bash
+export OPENAI_API_KEY=<token> OPENAI_BASE_URL=<网关>/v1        # codex / opencode / mini-swe
+export ANTHROPIC_API_KEY=<token> ANTHROPIC_BASE_URL=<网关>     # claude-code
+```
+
+按 agent 纯 Harbor 启动：
+
+```bash
+# claude-code（模型名必须裸名）
+harbor run --path <task-dir> --agent agents.tracing_agents:TracingClaudeCode --model <model> -n 1
+# codex
+harbor run --path <task-dir> --agent agents.tracing_agents:TracingCodex --model openai/<model> -n 1
+# opencode（Chat Completions + reasoning 回传，见下）
+harbor run --path <task-dir> --agent agents.tracing_agents:TracingOfflineOpenCode --model openai/<model> -n 1
+# mini-swe-agent
+harbor run --path <task-dir> --agent agents.tracing_agents:TracingOfflineMiniSweAgent --model openai/<model> -n 1
+```
+
+离线任务栈（三网隔离）需让模型流量走 compose 内的 model-api-proxy：
+
+```bash
+export CB2TB_API_UPSTREAM=<真实网关地址>          # proxy 的上游
+export OPENAI_BASE_URL=http://model-api-proxy:8080/v1   # agent 指向 proxy
+export ANTHROPIC_BASE_URL=http://model-api-proxy:8080   # claude-code 同理
+```
+
+要点：
+
+- **不再依赖其它仓库**：只依赖本仓库的 `configs/env/*.env`、`agents/` 包（pip 安装）和当前 Harbor。
+- **可选反代抓取**：给任一 agent 追加 `--ak capture_http=true`，会在 trial 的 `agent/` 目录额外生成单个汇总文件 `proxy_trajectory.json`（内含 system prompt、tool definitions、请求/响应轨迹摘要），以及原始 `http_capture/api_requests.jsonl` / `api_responses.jsonl`。
+- **claude-code**：模型名必须裸名；env 可从 `configs/env/claude-code.env.example` 复制为 `claude-code.env` 后 source，`CC_BASE_URL`/`CC_API_KEY` 可临时覆盖。
+- **codex**：模型名同样传裸名（wrapper 补 `openai/` 前缀）；env 用 `configs/env/openai-compatible.env`。
+- **opencode**：固定用 `agents.tracing_agents:TracingOfflineOpenCode`，模型传 `openai/<model>`。**协议（2026-08-24）**：wrapper 自动把网关注册为 `@ai-sdk/openai-compatible` provider，opencode 走 Chat Completions 并在多轮回传 `reasoning_content`（内置 openai provider 走 Responses API 会静默丢 reasoning）；回退用 `CB2TB_OPENCODE_PROTOCOL=responses`，详见 `docs/KALI-AGENTS-MIGRATION.md` §12。
+- **mini-swe-agent**：固定用 `agents.tracing_agents:TracingOfflineMiniSweAgent`，模型名自动补成 `openai/<model>`。
 - **限流**：网关有集群级 RPM 限制，烟测建议 `-n 1` 串行；并发上来后 429 由 claude-code 自带退避重试吸收。
 - **凭证暴露**：key 随 exec env 进入 main 容器，对被测 agent 可见（`env` 可读）——请使用专用内网 token。
 - **max_tokens**：glm-5.2 的 reasoning 可能吃掉输出预算，发现输出被截断时设 `CLAUDE_CODE_MAX_OUTPUT_TOKENS`。

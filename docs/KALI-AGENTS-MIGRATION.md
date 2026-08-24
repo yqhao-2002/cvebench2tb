@@ -252,7 +252,7 @@ harbor run --path <task-dir> \
 # 回退旧协议：CB2TB_OPENCODE_PROTOCOL=responses；关离线防护：CB2TB_OPENCODE_OFFLINE=0
 ```
 
-`scripts/run-opencode.sh` 保留兼容旧用法，不再是必需品。安装包只含 `agents/`
+启动脚本（`scripts/run-*.sh`）已整体移除，统一纯 Harbor CLI 启动。安装包只含 `agents/`
 （pyproject.toml），`--ae OPENAI_API_KEY=... OPENAI_BASE_URL=...` 与 export 两种
 传 env 方式均支持（`--ae` 优先）。
 
