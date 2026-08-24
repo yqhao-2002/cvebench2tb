@@ -861,7 +861,7 @@ class _TracingOpenCodeBase(HttpCaptureMixin, OpenCode):
             provider_config: dict[str, Any] = {"models": {model_id: {}}}
             base_url = self._get_env("OPENAI_BASE_URL")
             if base_url and provider == "openai":
-                if opencode_wire_protocol() == "chat":
+                if opencode_wire_protocol(self._get_env) == "chat":
                     # Chat Completions + reasoning_content replay: see
                     # agents/offline_agents.py module docstring. Registered
                     # under a dedicated provider id (built-in ids must not be
@@ -953,12 +953,12 @@ class _TracingOpenCodeBase(HttpCaptureMixin, OpenCode):
         env["OPENCODE_FAKE_VCS"] = "git"
         env["XDG_DATA_HOME"] = "/tmp/opencode/xdg-data"
         env["XDG_STATE_HOME"] = "/tmp/opencode/xdg-state"
-        env.update(opencode_offline_env())
+        env.update(opencode_offline_env(self._get_env))
 
         # Chat-completions protocol: translate the CLI model ref
         # openai/<id> -> openai-chat/<id> (provider registered under the
         # dedicated id; see agents/offline_agents.py module docstring).
-        wire_ref = opencode_wire_model_ref(self.model_name)
+        wire_ref = opencode_wire_model_ref(self.model_name, self._get_env)
         cli_model_ref = wire_ref or self.model_name
 
         cli_flags = self.build_cli_flags()

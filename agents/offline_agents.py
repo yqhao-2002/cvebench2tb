@@ -65,12 +65,16 @@ async def _preinstalled_binary_satisfies_version(
     return agent.parse_version(version_result.stdout or "") == agent.version()
 
 
-def opencode_wire_protocol() -> str:
-    """Chat completions by default; ``responses`` opts back into the old wire."""
-    return os.environ.get("CB2TB_OPENCODE_PROTOCOL", "chat").strip().lower()
+def opencode_wire_protocol(get_env=os.environ.get) -> str:
+    """Chat completions by default; ``responses`` opts back into the old wire.
+
+    ``get_env`` allows agent instances to resolve through Harbor's
+    ``_get_env`` (``--ae`` extra env first, then os.environ).
+    """
+    return (get_env("CB2TB_OPENCODE_PROTOCOL") or "chat").strip().lower()
 
 
-def opencode_offline_env() -> dict[str, str]:
+def opencode_offline_env(get_env=os.environ.get) -> dict[str, str]:
     """Env vars that keep the standalone opencode binary usable without any
     external network (offline evaluation tasks).
 
@@ -84,7 +88,7 @@ def opencode_offline_env() -> dict[str, str]:
     Disable with ``CB2TB_OPENCODE_OFFLINE=0`` (online environments that want
     plugin/model-registry features).
     """
-    if os.environ.get("CB2TB_OPENCODE_OFFLINE", "1") == "0":
+    if (get_env("CB2TB_OPENCODE_OFFLINE") or "1") == "0":
         return {}
     return {
         "OPENCODE_DISABLE_MODELS_FETCH": "1",
@@ -102,7 +106,9 @@ def opencode_offline_env() -> dict[str, str]:
 OPENCODE_CHAT_PROVIDER_ID = "openai-chat"
 
 
-def opencode_wire_model_ref(model_name: str | None) -> str | None:
+def opencode_wire_model_ref(
+    model_name: str | None, get_env=os.environ.get
+) -> str | None:
     """Map ``openai/<model>`` to the chat-completions provider ref.
 
     Only active when the wire protocol is "chat" and OPENAI_BASE_URL is set
@@ -114,9 +120,9 @@ def opencode_wire_model_ref(model_name: str | None) -> str | None:
     provider, model_id = model_name.split("/", 1)
     if provider != "openai":
         return None
-    if opencode_wire_protocol() != "chat":
+    if opencode_wire_protocol(get_env) != "chat":
         return None
-    if not os.environ.get("OPENAI_BASE_URL"):
+    if not get_env("OPENAI_BASE_URL"):
         return None
     return f"{OPENCODE_CHAT_PROVIDER_ID}/{model_id}"
 
@@ -148,7 +154,7 @@ class OfflineOpenCode(OpenCode):
         ``openai-chat/<model>`` ref instead.  We wrap exec_as_agent to rewrite
         the flag and merge ``opencode_offline_env()`` into every command env.
         """
-        wire_ref = opencode_wire_model_ref(self.model_name)
+        wire_ref = opencode_wire_model_ref(self.model_name, self._get_env)
         original_exec = self.exec_as_agent
         model_flag = f"--model={self.model_name}"
 
@@ -166,7 +172,7 @@ class OfflineOpenCode(OpenCode):
                 )
             if env is None:
                 env = {}
-            env = {**env, **opencode_offline_env()}
+            env = {**env, **opencode_offline_env(self._get_env)}
             return await original_exec(
                 environment=environment_, command=command, env=env, **kwargs
             )
@@ -195,8 +201,12 @@ class OfflineOpenCode(OpenCode):
         if self.model_name and "/" in self.model_name:
             provider, model_id = self.model_name.split("/", 1)
             provider_config: dict = {"models": {model_id: {}}}
-            base_url = os.environ.get("OPENAI_BASE_URL")
-            if provider == "openai" and base_url and opencode_wire_protocol() == "chat":
+            base_url = self._get_env("OPENAI_BASE_URL")
+            if (
+                provider == "openai"
+                and base_url
+                and opencode_wire_protocol(self._get_env) == "chat"
+            ):
                 # Register the chat-completions provider under a dedicated id
                 # (built-in ids must not be reused — see OPENCODE_CHAT_PROVIDER_ID).
                 # --model openai/<id> keeps working: run() translates the CLI
@@ -205,7 +215,7 @@ class OfflineOpenCode(OpenCode):
                 provider_config["name"] = "OpenAI-compatible (chat completions)"
                 provider_config["options"] = {
                     "baseURL": base_url,
-                    "apiKey": os.environ.get("OPENAI_API_KEY", "dummy-key"),
+                    "apiKey": self._get_env("OPENAI_API_KEY") or "dummy-key",
                 }
                 provider = OPENCODE_CHAT_PROVIDER_ID
             elif base_url and provider in ("openai", "anthropic"):

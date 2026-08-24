@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cvebench2tb-agents"
+version = "2.1.0"
+description = "Harbor agents for cvebench2tb: offline opencode / mini-swe-agent (Chat Completions wire + reasoning replay) and tracing variants"
+requires-python = ">=3.10"
+
+# 只打包 agents 包；任务目录、镜像构建上下文等不入包。
+[tool.setuptools]
+packages = ["agents"]

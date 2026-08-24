@@ -231,24 +231,30 @@ docker push "$NS:kali-agents-2.1.0"
 
 ## 12. opencode 协议切换：Chat Completions + reasoning 回传（2026-08-24）
 
-**使用方式（推荐入口）**：
+**使用方式（纯 Harbor 启动，2026-08-24 定稿）**：
+
+一次性安装（每台机器一次，editable 安装随 git pull 生效）：
 
 ```bash
-# 裸模型名自动补 openai/ 前缀；协议切换与 reasoning 回传由 wrapper 自动完成
-scripts/run-opencode.sh <task-dir> <model> [-n 1 ...]
-# 例：scripts/run-opencode.sh cve-2024-34716-one-day deepseek-v4-pro-0813 -n 1
-
-# 回退旧 Responses 协议 / 关闭离线防护
-CB2TB_OPENCODE_PROTOCOL=responses scripts/run-opencode.sh ...
-CB2TB_OPENCODE_OFFLINE=0 scripts/run-opencode.sh ...
+uv pip install --python "$(dirname "$(head -1 $(command -v harbor))")/python" -e /root/cvebench2tb
+# 或：uv tool inject harbor -e /root/cvebench2tb
 ```
 
-等价的裸 harbor 命令（不用脚本时）：
+之后任意目录、无 PYTHONPATH、无脚本：
 
 ```bash
-PYTHONPATH=$PWD harbor run --path <task> \
-    --agent agents.tracing_agents:TracingOfflineOpenCode --model openai/<model>
+export OPENAI_API_KEY=<token> OPENAI_BASE_URL=<网关>/v1   # 或用 --ae 传
+
+harbor run --path <task-dir> \
+    --agent agents.tracing_agents:TracingOfflineOpenCode \
+    --model openai/<model> -n 1
+# 轻量版（无 HTTP 抓取）：--agent agents.offline_agents:OfflineOpenCode
+# 回退旧协议：CB2TB_OPENCODE_PROTOCOL=responses；关离线防护：CB2TB_OPENCODE_OFFLINE=0
 ```
+
+`scripts/run-opencode.sh` 保留兼容旧用法，不再是必需品。安装包只含 `agents/`
+（pyproject.toml），`--ae OPENAI_API_KEY=... OPENAI_BASE_URL=...` 与 export 两种
+传 env 方式均支持（`--ae` 优先）。
 
 
 **问题**：opencode 1.18.18 内置 `openai` provider 硬编码 Responses API，多轮回放丢弃
