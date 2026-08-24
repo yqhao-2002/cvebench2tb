@@ -255,7 +255,16 @@ PYTHONPATH=$PWD harbor run --path <task> \
 reasoning（仅当上游返回 `encrypted_content` 才回传；OpenAI 兼容网关返回明文故全丢）。
 `sendReasoning` 配置只被 anthropic 路径消费，无效。
 
-**修复（纯 wrapper 配置层，零镜像改动）**：`agents/offline_agents.py`
+**双层修复（2026-08-24）**：
+1. **镜像层（用户无感，主力）**：`image/kali-agents/opencode-launcher.sh` 取代
+   `/usr/local/bin/opencode`（真二进制移至 `opencode.real`）。任何调用方（Harbor
+   原生 agent / 手动运行 / 仓库 wrapper）自动走 Chat Completions + reasoning
+   回传。激活条件：`OPENAI_BASE_URL` 已设 + `--model=openai/*`；opt-out 同下。
+   详见 launcher 脚本头注释。**发布状态**：本机 daemon 不稳未正式 build，
+   launcher 布局已在发布镜像容器内实测五项全过 + docker commit 镜像复验通过；
+   待机器恢复后 `cd image/kali-agents && docker build -t cvebench/kali-agents:<tag> .`
+   并按 §5.2 tag 规范推送。
+2. **wrapper 层（仓库侧，已上线）**：`agents/offline_agents.py`
 - provider 以专用 id `openai-chat` 注册（npm=`@ai-sdk/openai-compatible`，内嵌于二进制）
   → 走 `/chat/completions`，回传 assistant 消息自动带 `reasoning_content`
 - `--model openai/<id>` 用法不变，run() 自动翻译 CLI 引用
