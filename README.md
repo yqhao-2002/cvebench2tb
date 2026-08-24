@@ -186,17 +186,9 @@ main (agent) ----------- target_network ----------- target / db / sidecars
 
 #### 启动方式
 
-推荐使用四个 `scripts/run-*.sh`。脚本会先把配置文件中的真实 Base URL 保存到 `CB2TB_API_UPSTREAM`，再把 Agent 看到的 `OPENAI_BASE_URL` 或 `ANTHROPIC_BASE_URL` 改写为内部代理地址。API key 仍只通过运行时环境传入，不写入 Compose 或 Git。
+统一纯 Harbor CLI 启动（`scripts/run-*.sh` 已移除）：先把真实网关地址保存到 `CB2TB_API_UPSTREAM`（compose 的 model-api-proxy 以它为上游），再把 Agent 看到的 `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` 指向内部代理地址。API key 只通过运行时环境传入，不写入 Compose 或 Git。
 
-真实配置文件必须使用 `.env` 后缀，例如 `configs/env/openai-compatible.env`；该路径已被 `.gitignore` 排除。仓库只提交使用占位值的 `.env.example`：
-
-```bash
-cp configs/env/openai-compatible.env.example configs/env/openai-compatible.env
-# 在被忽略的本地文件中填写专用、最小权限、可撤销的评测 token。
-scripts/run-codex.sh <task-dir> <model> -n 1
-```
-
-如需绕过内置脚本直接调用 Harbor，必须完成等价改写。以下仅为无效占位示例，不应把真实 token 写入命令历史或仓库：
+真实配置文件必须使用 `.env` 后缀，例如 `configs/env/openai-compatible.env`；该路径已被 `.gitignore` 排除。仓库只提交使用占位值的 `.env.example`。以下仅为无效占位示例，不应把真实 token 写入命令历史或仓库：
 
 ```bash
 export CB2TB_API_UPSTREAM='https://api-gateway.example.invalid/v1'
