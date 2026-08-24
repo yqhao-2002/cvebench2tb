@@ -249,9 +249,10 @@ reasoning（仅当上游返回 `encrypted_content` 才回传；OpenAI 兼容网�
 - ✅ 容器内（发布镜像 digest c8723851 实测）：协议 `/chat/completions` + 两轮回传
   `reasoning_content` 全通过（含经 capture proxy 的完整链路）
 - ✅ Harbor 管线各环节（config 生成/模型引用翻译/install skip）在真实 run 确认
-- ⚠️ 完整 harbor trial 未收尾：共享宿主机当日全局 OOM（dmesg:
-  `Killed process opencode`，另一会话容器占满内存，available=0）误杀，与改动无关；
-  内存宽裕时重跑 `PYTHONPATH=$PWD harbor run --path <task> \
-  --agent agents.tracing_agents:TracingOfflineOpenCode --model openai/<model>` 验证
+- ✅ 完整 harbor trial 闭环（2026-08-24，最小任务 + mock 网关）：trial completed、
+  reward=1、无异常；线级 3 请求全 /chat/completions 且第二轮回传 assistant 带
+  reasoning_content+tool_calls；ATIF 轨迹 step 含 reasoning_content。此前三次失败
+  均为共享宿主全局 OOM 刺杀 opencode（74G 虚拟内存招灾），已加
+  oom_score_adj=-1000 护盾解决
 - 注意：**只 pull 镜像不够**——修复在仓库 `agents/*.py`，必须用本仓库 wrapper
   （`OfflineOpenCode`/`TracingOfflineOpenCode`），不能用 Harbor 原生 `--agent opencode`
