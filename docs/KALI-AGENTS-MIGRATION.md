@@ -228,3 +228,30 @@ docker push "$NS:kali-agents-2.1.0"
 | `ModuleNotFoundError: agents` | Harbor 进程找不到本仓库 | 在仓库根执行并设置 `PYTHONPATH="$PWD"` |
 | 任务启动时报 `manifest unknown` | registry 中新 tag 尚未发布 | 先完成 §0/§10 的镜像 push |
 | mini-swe `--version` 报无此选项 | 2.4.6 CLI 本身没有该选项 | 用薄子类的 metadata 版本探测或 `/opt/mini-swe-agent/bin/python -c ...` |
+
+## 12. opencode 协议切换：Chat Completions + reasoning 回传（2026-08-24）
+
+**问题**：opencode 1.18.18 内置 `openai` provider 硬编码 Responses API，多轮回放丢弃
+reasoning（仅当上游返回 `encrypted_content` 才回传；OpenAI 兼容网关返回明文故全丢）。
+`sendReasoning` 配置只被 anthropic 路径消费，无效。
+
+**修复（纯 wrapper 配置层，零镜像改动）**：`agents/offline_agents.py`
+- provider 以专用 id `openai-chat` 注册（npm=`@ai-sdk/openai-compatible`，内嵌于二进制）
+  → 走 `/chat/completions`，回传 assistant 消息自动带 `reasoning_content`
+- `--model openai/<id>` 用法不变，run() 自动翻译 CLI 引用
+- `opencode_offline_env()`：OPENCODE_DISABLE_MODELS_FETCH/PURE/DISABLE_AUTOUPDATE/
+  DO_NOT_TRACK（离线防挂）；开关：`CB2TB_OPENCODE_PROTOCOL=responses` 回退、
+  `CB2TB_OPENCODE_OFFLINE=0` 关离线 env
+- 坑：provider id 不能复用内置 `openai`（离线挂起）；opencode 冷启动（新 HOME 首跑）
+  需 60-150s，exec 超时别设太短；被杀进程的 XDG 实例锁会毒化同 HOME 后续运行
+
+**验证状态**：
+- ✅ 容器内（发布镜像 digest c8723851 实测）：协议 `/chat/completions` + 两轮回传
+  `reasoning_content` 全通过（含经 capture proxy 的完整链路）
+- ✅ Harbor 管线各环节（config 生成/模型引用翻译/install skip）在真实 run 确认
+- ⚠️ 完整 harbor trial 未收尾：共享宿主机当日全局 OOM（dmesg:
+  `Killed process opencode`，另一会话容器占满内存，available=0）误杀，与改动无关；
+  内存宽裕时重跑 `PYTHONPATH=$PWD harbor run --path <task> \
+  --agent agents.tracing_agents:TracingOfflineOpenCode --model openai/<model>` 验证
+- 注意：**只 pull 镜像不够**——修复在仓库 `agents/*.py`，必须用本仓库 wrapper
+  （`OfflineOpenCode`/`TracingOfflineOpenCode`），不能用 Harbor 原生 `--agent opencode`
