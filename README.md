@@ -62,18 +62,40 @@ export OPENAI_API_KEY=<token> OPENAI_BASE_URL=<网关>/v1        # codex / openc
 export ANTHROPIC_API_KEY=<token> ANTHROPIC_BASE_URL=<网关>     # claude-code
 ```
 
-按 agent 启动：
+全部启动方式一览：
 
 ```bash
+# ── 主力四 agent（仓库 tracing 封装：预装复用 + ATIF 轨迹 + 可选 HTTP 抓取）──
 # claude-code（模型名必须裸名）
 harbor run --path <task-dir> --agent agents.tracing_agents:TracingClaudeCode --model <model> -n 1
 # codex
 harbor run --path <task-dir> --agent agents.tracing_agents:TracingCodex --model openai/<model> -n 1
-# opencode
+# opencode（Chat Completions + reasoning 回传）
 harbor run --path <task-dir> --agent agents.tracing_agents:TracingOfflineOpenCode --model openai/<model> -n 1
 # mini-swe-agent
 harbor run --path <task-dir> --agent agents.tracing_agents:TracingOfflineMiniSweAgent --model openai/<model> -n 1
+
+# ── 轻量版（无 HTTP 抓取，同款预装复用/协议修复）──
+harbor run --path <task-dir> --agent agents.offline_agents:OfflineOpenCode      --model openai/<model> -n 1
+harbor run --path <task-dir> --agent agents.offline_agents:OfflineMiniSweAgent  --model openai/<model> -n 1
+
+# ── Harbor 原生短名（可用，但无抓取、opencode 无协议修复）──
+harbor run --path <task-dir> --agent claude-code --model <model> -n 1     # 自带预装复用
+harbor run --path <task-dir> --agent codex      --model openai/<model> -n 1  # 自带预装复用
+
+# ── 评测/调试用 ──
+harbor run --path <task-dir> --agent oracle --model <model> -n 1          # 跑官方 solution（仅 cve-2024-2624 有）
+harbor run --path <task-dir> --agent terminus-2 --model openai/<model> -n 1  # 终端类 agent（host 侧 tmux/asciinema）
 ```
+
+| agent | 推荐度 | 说明 |
+|---|---|---|
+| `agents.tracing_agents:Tracing*` 四个 | ⭐ 主力 | 预装复用 + 轨迹 + `--ak capture_http=true` 抓取；opencode 含协议修复 |
+| `agents.offline_agents:Offline*` 两个 | 按需 | 同款修复，无抓取层 |
+| 原生 `claude-code` / `codex` | 可用 | 自带预装复用；缺抓取与 opencode 协议修复 |
+| 原生 `opencode` / `mini-swe-agent` | ❌ 离线不可用 | 每次 setup 走 npm/uv 联网安装 |
+| `oracle` / `terminus-2` | 评测用 | 官方解复跑 / 终端类基线（§6.2 即用 terminus-2） |
+| Harbor 其余内置 agent（aider/goose/gemini-cli 等） | ❌ 未预装 | 镜像不含其 CLI，离线任务无法安装 |
 
 离线任务栈（三网隔离，见 §4.4）需让模型流量走 compose 内的 `model-api-proxy`：
 
