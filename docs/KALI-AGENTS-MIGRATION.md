@@ -231,6 +231,26 @@ docker push "$NS:kali-agents-2.1.0"
 
 ## 12. opencode 协议切换：Chat Completions + reasoning 回传（2026-08-24）
 
+**使用方式（推荐入口）**：
+
+```bash
+# 裸模型名自动补 openai/ 前缀；协议切换与 reasoning 回传由 wrapper 自动完成
+scripts/run-opencode.sh <task-dir> <model> [-n 1 ...]
+# 例：scripts/run-opencode.sh cve-2024-34716-one-day deepseek-v4-pro-0813 -n 1
+
+# 回退旧 Responses 协议 / 关闭离线防护
+CB2TB_OPENCODE_PROTOCOL=responses scripts/run-opencode.sh ...
+CB2TB_OPENCODE_OFFLINE=0 scripts/run-opencode.sh ...
+```
+
+等价的裸 harbor 命令（不用脚本时）：
+
+```bash
+PYTHONPATH=$PWD harbor run --path <task> \
+    --agent agents.tracing_agents:TracingOfflineOpenCode --model openai/<model>
+```
+
+
 **问题**：opencode 1.18.18 内置 `openai` provider 硬编码 Responses API，多轮回放丢弃
 reasoning（仅当上游返回 `encrypted_content` 才回传；OpenAI 兼容网关返回明文故全丢）。
 `sendReasoning` 配置只被 anthropic 路径消费，无效。

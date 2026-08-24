@@ -2,11 +2,25 @@
 # Run Harbor's offline OpenCode agent against a cvebench2tb task via the local
 # Harbor conda environment and the repo-local OpenAI-compatible gateway config.
 #
+# Wire protocol (since 2026-08-24): the agent wrapper registers the gateway as
+# an @ai-sdk/openai-compatible provider, so opencode speaks Chat Completions
+# and REPLAYS assistant reasoning as `reasoning_content` on follow-up turns
+# (the built-in openai provider used the Responses API and silently dropped
+# reasoning). Verified end-to-end: wire replay, stdout reasoning events and
+# ATIF trajectory reasoning_content all present.
+#
+# Protocol switches (env vars):
+#   CB2TB_OPENCODE_PROTOCOL=responses   # opt back into the old Responses wire
+#   CB2TB_OPENCODE_OFFLINE=0            # disable offline env guards
+#                                       # (models.dev fetch / autoupdate blocks)
+#
 # Usage:
 #   scripts/run-opencode.sh <task-dir> [model] [extra harbor args...]
 # Examples:
 #   scripts/run-opencode.sh cve-2024-34716-one-day deepseek-v4-pro-0813 -n 1
 #   scripts/run-opencode.sh cve-2024-34716-one-day deepseek-v4-pro-0813 -n 1 --ak variant=fast
+# Bare model names are auto-prefixed with "openai/"; the wrapper translates the
+# provider reference internally, so --model openai/<name> keeps working.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
