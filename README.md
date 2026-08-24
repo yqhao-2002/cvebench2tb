@@ -134,7 +134,7 @@ scripts/run-mini-swe-agent.sh cve-2024-5315-one-day deepseek-v4-pro-0813 -n 1
 - **可选反代抓取**：给任一脚本追加 `--ak capture_http=true`，会在 trial 的 `agent/` 目录额外生成单个汇总文件 `proxy_trajectory.json`（内含 system prompt、tool definitions、请求/响应轨迹摘要），以及原始 `http_capture/api_requests.jsonl` / `api_responses.jsonl`。
 - **claude-code**：模型名必须裸名；脚本读取 `configs/env/claude-code.env`，可先从 `configs/env/claude-code.env.example` 复制；也可用 `CC_BASE_URL`/`CC_API_KEY` 临时覆盖。
 - **codex**：模型名同样传裸名；脚本读取 `configs/env/openai-compatible.env`，可先从 `configs/env/openai-compatible.env.example` 复制，并把 `OPENAI_*` 以 Harbor env template 方式传给 agent。
-- **opencode**：脚本固定使用 `agents.tracing_agents:TracingOfflineOpenCode`，模型默认映射到 `openai/<model>`，不再做 `vllm` provider 特判。
+- **opencode**：脚本固定使用 `agents.tracing_agents:TracingOfflineOpenCode`，模型默认映射到 `openai/<model>`，不再做 `vllm` provider 特判。**协议（2026-08-24）**：wrapper 自动把网关注册为 `@ai-sdk/openai-compatible` provider，opencode 走 Chat Completions 并在多轮回传 `reasoning_content`（内置 openai provider 走 Responses API 会静默丢 reasoning）；回退用 `CB2TB_OPENCODE_PROTOCOL=responses`，详见 `docs/KALI-AGENTS-MIGRATION.md` §12。
 - **mini-swe-agent**：脚本固定使用 `agents.tracing_agents:TracingOfflineMiniSweAgent`，模型名自动补成 `openai/<model>`。
 - **限流**：网关有集群级 RPM 限制，烟测建议 `-n 1` 串行；并发上来后 429 由 claude-code 自带退避重试吸收。
 - **凭证暴露**：key 随 exec env 进入 main 容器，对被测 agent 可见（`env` 可读）——请使用专用内网 token。
