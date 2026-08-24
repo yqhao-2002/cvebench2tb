@@ -27,9 +27,14 @@ RUN chmod 0755 /usr/local/bin/claude && claude --version
 COPY codex /usr/local/bin/codex
 RUN chmod 0755 /usr/local/bin/codex && codex --version
 
-# opencode (standalone binary, sha256-pinned; see fetch.sh).
-COPY opencode /usr/local/bin/opencode
-RUN chmod 0755 /usr/local/bin/opencode && opencode --version
+# opencode (standalone binary, sha256-pinned; see fetch.sh). The real binary
+# is installed as opencode.real; a thin launcher takes its place on PATH so
+# every invocation (Harbor native agent, manual runs, repo wrappers) routes
+# the openai provider over Chat Completions with reasoning_content replay
+# when OPENAI_BASE_URL is set. See opencode-launcher.sh + KALI-AGENTS-MIGRATION.md §12.
+COPY opencode /usr/local/bin/opencode.real
+COPY opencode-launcher.sh /usr/local/bin/opencode
+RUN chmod 0755 /usr/local/bin/opencode.real /usr/local/bin/opencode && opencode --version
 
 # mini-swe-agent: use an isolated venv so its Python packages never overwrite
 # Kali's Debian-managed Python packages. The lock contains the complete tested
