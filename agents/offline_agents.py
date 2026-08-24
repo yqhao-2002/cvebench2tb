@@ -155,6 +155,15 @@ class OfflineOpenCode(OpenCode):
         async def _patched_exec(environment_, command, env=None, **kwargs):
             if wire_ref and model_flag in command:
                 command = command.replace(model_flag, f"--model={wire_ref}")
+            # Shield opencode from host-global OOM (74G virtual memory makes
+            # it the killer's top pick despite a small RSS); harmless no-op
+            # where /proc/self is not writable.
+            if command.startswith(". ~/.nvm/nvm.sh; opencode "):
+                command = command.replace(
+                    ". ~/.nvm/nvm.sh; ",
+                    ". ~/.nvm/nvm.sh; echo -1000 > /proc/self/oom_score_adj 2>/dev/null; ",
+                    1,
+                )
             if env is None:
                 env = {}
             env = {**env, **opencode_offline_env()}

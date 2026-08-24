@@ -978,6 +978,11 @@ class _TracingOpenCodeBase(HttpCaptureMixin, OpenCode):
                 environment,
                 command=(
                     ". ~/.nvm/nvm.sh; "
+                    # Guard against host-global OOM assassinating the agent:
+                    # bun/opencode reserves ~74G *virtual* memory which makes
+                    # it the OOM killer's favorite victim despite a small
+                    # RSS. Shield it so the killer picks real consumers.
+                    "echo -1000 > /proc/self/oom_score_adj 2>/dev/null; "
                     f"opencode --model={cli_model_ref} run --format=json "
                     f"{resume_flag}{cli_flags_arg}--thinking "
                     f"--dangerously-skip-permissions -- {escaped_instruction} "
