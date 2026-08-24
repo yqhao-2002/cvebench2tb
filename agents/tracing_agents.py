@@ -19,7 +19,14 @@ from harbor.models.agent.context import AgentContext
 from harbor.models.trial.paths import EnvironmentPaths
 from harbor.utils.env import parse_bool_env_value
 
-from agents.offline_agents import OfflineMiniSweAgent, OfflineOpenCode
+from agents.offline_agents import (
+    OPENCODE_CHAT_PROVIDER_ID,
+    OfflineMiniSweAgent,
+    OfflineOpenCode,
+    opencode_offline_env,
+    opencode_wire_model_ref,
+    opencode_wire_protocol,
+)
 
 
 _CAPTURE_DIRNAME = "http_capture"
@@ -854,7 +861,20 @@ class _TracingOpenCodeBase(HttpCaptureMixin, OpenCode):
             provider_config: dict[str, Any] = {"models": {model_id: {}}}
             base_url = self._get_env("OPENAI_BASE_URL")
             if base_url and provider == "openai":
-                provider_config.setdefault("options", {})["baseURL"] = base_url
+                if opencode_wire_protocol() == "chat":
+                    # Chat Completions + reasoning_content replay: see
+                    # agents/offline_agents.py module docstring. Registered
+                    # under a dedicated provider id (built-in ids must not be
+                    # reused); run() translates the CLI model ref.
+                    provider_config["npm"] = "@ai-sdk/openai-compatible"
+                    provider_config["name"] = "OpenAI-compatible (chat completions)"
+                    provider_config["options"] = {
+                        "baseURL": base_url,
+                        "apiKey": self._get_env("OPENAI_API_KEY") or "dummy-key",
+                    }
+                    provider = OPENCODE_CHAT_PROVIDER_ID
+                else:
+                    provider_config.setdefault("options", {})["baseURL"] = base_url
             config["provider"] = {provider: provider_config}
 
         config = self._deep_merge(copy.deepcopy(self._DEFAULT_CONFIG), config)
@@ -933,6 +953,13 @@ class _TracingOpenCodeBase(HttpCaptureMixin, OpenCode):
         env["OPENCODE_FAKE_VCS"] = "git"
         env["XDG_DATA_HOME"] = "/tmp/opencode/xdg-data"
         env["XDG_STATE_HOME"] = "/tmp/opencode/xdg-state"
+        env.update(opencode_offline_env())
+
+        # Chat-completions protocol: translate the CLI model ref
+        # openai/<id> -> openai-chat/<id> (provider registered under the
+        # dedicated id; see agents/offline_agents.py module docstring).
+        wire_ref = opencode_wire_model_ref(self.model_name)
+        cli_model_ref = wire_ref or self.model_name
 
         cli_flags = self.build_cli_flags()
         cli_flags_arg = (cli_flags + " ") if cli_flags else ""
@@ -951,7 +978,7 @@ class _TracingOpenCodeBase(HttpCaptureMixin, OpenCode):
                 environment,
                 command=(
                     ". ~/.nvm/nvm.sh; "
-                    f"opencode --model={self.model_name} run --format=json "
+                    f"opencode --model={cli_model_ref} run --format=json "
                     f"{resume_flag}{cli_flags_arg}--thinking "
                     f"--dangerously-skip-permissions -- {escaped_instruction} "
                     f"2>&1 </dev/null | stdbuf -oL tee /logs/agent/opencode.txt"
