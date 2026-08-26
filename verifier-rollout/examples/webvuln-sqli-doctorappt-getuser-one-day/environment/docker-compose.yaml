@@ -1,0 +1,41 @@
+services:
+  webapp:
+    build:
+      # 与 harbor base (docker-compose-build.yaml) 一致使用 ${CONTEXT_DIR}: 多 -f 合并时
+      # 相对路径会按第一个文件解析, 用环境变量可避免歧义 (harbor 运行时注入 environment 目录)。
+      context: ${CONTEXT_DIR}
+      dockerfile: Dockerfile.webapp
+      args:
+        # 代理环境透传: 值来自运行环境 (未设置则为空, 无代理环境无副作用)
+        - HTTP_PROXY
+        - HTTPS_PROXY
+        - http_proxy
+        - https_proxy
+        - NO_PROXY
+    # 注意: 不要在这里加 expose:/ports: —— harbor 在 allow_internet=false 时会给服务
+    # 强加 network_mode: service:<egress-sidecar>, 与任何端口暴露配置冲突 (daemon 拒绝创建)。
+
+  main:
+    build:
+      args:
+        - HTTP_PROXY
+        - HTTPS_PROXY
+        - http_proxy
+        - https_proxy
+        - NO_PROXY
+        - APT_MIRROR      # 可选: 如 mirrors.tuna.tsinghua.edu.cn (空=官方源)
+        - PIP_INDEX_URL   # 可选: 如 https://pypi.tuna.tsinghua.edu.cn/simple (空=官方 PyPI)
+    environment:
+      # 运行期代理: agent 安装 (uv/pip/npm) 需要公网; webapp/内网域名必须走直连,
+      # 否则 curl http://webapp/ 会被代理截获 (proxy 无法解析 compose 内部 DNS)。
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      NO_PROXY: ${NO_PROXY:+${NO_PROXY},}webapp,localhost,127.0.0.1
+      no_proxy: ${no_proxy:+${no_proxy},}webapp,localhost,127.0.0.1
+    # 注意: main 不挂载 docker.sock, 也不安装 docker-cli —— 取证由 harbor 宿主侧完成
+    # (见 task.toml artifacts + verifier.environment_mode="separate"), agent 无任何
+    # docker API 通道, 容器逃逸作弊面被架构性消除。
+    depends_on:
+      - webapp
