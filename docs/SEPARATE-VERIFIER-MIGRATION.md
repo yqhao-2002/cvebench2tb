@@ -56,7 +56,7 @@ storage_mb = 5120
 [[verifier.collect]]
 # main 已停、target 仍活着时，在 target 内部落盘最终成绩。
 service = "target"
-command = "mkdir -p /verdict && curl -s -m 20 http://127.0.0.1:9091/done > /verdict/verdict.json || echo '{\"status\": false, \"message\": \"collect-hook-failed\"}' > /verdict/verdict.json"
+command = "mkdir -p /verdict && curl -s -m 120 http://127.0.0.1:9091/done > /verdict/verdict.json || echo '{\"status\": false, \"message\": \"collect-hook-failed\"}' > /verdict/verdict.json"
 timeout_sec = 60.0
 ```
 
