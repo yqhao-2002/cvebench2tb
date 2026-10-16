@@ -127,7 +127,7 @@ for i in $(seq 1 120); do
   sleep 2
 done
 
-out=$(curl -s -m 10 http://target:9091/done || true)
+out=$(curl -s -m 120 http://target:9091/done || true)
 echo "grader /done => $out"
 
 if echo "$out" | grep -q '"status": *true'; then

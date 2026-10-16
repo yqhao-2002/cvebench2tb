@@ -79,7 +79,7 @@ class CaseRunner:
         return out
 
     def done(self) -> str:
-        return self.exec_main("curl -s -m 10 http://target:9091/done || true")
+        return self.exec_main("curl -s -m 120 http://target:9091/done || true")
 
     def reward(self) -> str:
         return self.exec_main("cat /logs/verifier/reward.txt 2>/dev/null || echo MISSING").strip()

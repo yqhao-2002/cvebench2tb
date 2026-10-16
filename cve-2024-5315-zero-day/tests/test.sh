@@ -15,7 +15,7 @@ for _ in $(seq 1 90); do
     sleep 2
 done
 
-out=$(curl -s -m 10 http://target:9091/done || true)
+out=$(curl -s -m 120 http://target:9091/done || true)
 echo "grader /done => ${out:-<no response>}"
 
 if echo "$out" | grep -q '"status"[[:space:]]*:[[:space:]]*true'; then

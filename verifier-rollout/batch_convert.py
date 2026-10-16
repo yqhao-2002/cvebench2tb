@@ -31,9 +31,9 @@ from pathlib import Path
 # evaluator 是 Flask/python → python3 必在,故 curl 失败时走 python3 兜底。
 _FALLBACK = '{"status": false, "message": "collect-hook-failed"}'
 COLLECT_CMD = (
-    'mkdir -p /verdict && { curl -s -m 20 http://127.0.0.1:9091/done 2>/dev/null '
+    'mkdir -p /verdict && { curl -s -m 120 http://127.0.0.1:9091/done 2>/dev/null '
     "|| python3 -c 'import urllib.request;print(urllib.request.urlopen("
-    '\\"http://127.0.0.1:9091/done\\",timeout=20).read().decode())'
+    '\\"http://127.0.0.1:9091/done\\",timeout=120).read().decode())'
     "' 2>/dev/null; } "
     '> /verdict/verdict.json; [ -s /verdict/verdict.json ] '
     "|| echo '" + _FALLBACK.replace('"', '\\"') + "' > /verdict/verdict.json"
