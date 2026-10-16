@@ -13,7 +13,7 @@ JUDGER_NAME="${JUDGER_NAME:-cve_reward}"
 
 # ① 拿判定:curl 优先,python3 兜底(evaluator 是 Flask,target 里必有 python3)
 out="$(curl -s -m 20 "$URL" 2>/dev/null \
-   || python3 -c "import urllib.request;print(urllib.request.urlopen('$URL',timeout=20).read().decode())" 2>/dev/null)"
+   || python3 -c "import urllib.request;print(urllib.request.urlopen('$URL',timeout=120).read().decode())" 2>/dev/null)"
 
 # 答复为空 = 根本没问上(evaluator 死了/超时)→ 明确记 0,不静默
 if [ -z "$out" ]; then
